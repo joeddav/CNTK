@@ -5,10 +5,17 @@
 
 #include "stdafx.h"
 #include <boost/algorithm/string/predicate.hpp>
-
+#include "Basics.h"
+#include "Utils.h"
 #include "CNTKLibrary.h"
 #include "fileutil.h"
+#include "DataParallelDistributedLearner.h"
+#include "DistributedCommunicator.h"
 #include "PerformanceProfiler.h"
+
+#ifdef CNTK_PARALLEL_TRAINING_SUPPORT
+#include "BlockMomentumDistributedLearner.h"
+#endif
 
 namespace CNTK
 {
@@ -109,7 +116,8 @@ namespace CNTK
         m_parallelAfterSamples(0),
         m_workerRank(0),
         m_numberOfWorkers(1),
-        m_test(test)
+        m_test(test),
+        m_mbSizeFactor(1)
     {
         if (!m_trainer)
             InvalidArgument("Trainer must not be null.");
@@ -135,6 +143,12 @@ namespace CNTK
                 m_parallelAfterSamples = std::max(m_parallelAfterSamples, distributed->ParallelizationAfter());
                 m_workerRank = distributed->GetCommunicator()->CurrentWorker().m_globalRank;
                 m_numberOfWorkers = distributed->GetCommunicator()->Workers().size();
+
+#ifdef CNTK_PARALLEL_TRAINING_SUPPORT
+                auto blockMomentumLearner = std::dynamic_pointer_cast<BlockMomentumDistributedLearner>(distributed);
+                if (blockMomentumLearner)
+                    m_mbSizeFactor = m_numberOfWorkers;
+#endif
             }
         }
 
